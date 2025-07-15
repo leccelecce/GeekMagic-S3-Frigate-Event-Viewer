@@ -703,8 +703,11 @@ void onMqttMessage(
           jpgQueue.push_back(filename);
         }
       }
-      String url = "http://" + frigateIP + ":" + String(frigatePort) +
-                   "/api/events/" + detections[0].as<String>() + "/snapshot.jpg?crop=1&height=240";
+      //String url = "http://" + frigateIP + ":" + String(frigatePort) +
+      //             "/api/events/" + detections[0].as<String>() + "/snapshot.jpg?crop=1&height=240";
+
+      String url = "https://nginximg.internal.calbefraques.co.uk/240x240/api/events/" + detections[0].as<String>() + "/snapshot.jpg";
+
       imagePending = true;
       pendingImageUrl = url;
       pendingZone = zone;
