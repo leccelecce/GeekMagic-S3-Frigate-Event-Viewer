@@ -1160,6 +1160,7 @@ void setupWiFi() {
       fallbackAP = true;
     } else {
       Serial.println("WiFi connected to: " + ssid);
+Serial.println("BSSID: " + WiFi.BSSIDstr());
       Serial.println("IP address: " + WiFi.localIP().toString());
       setScreen("statusWiFi", 20, "show_wifi_status");
       tft.setTextColor(TFT_GREEN, TFT_BLACK);
@@ -1169,8 +1170,10 @@ void setupWiFi() {
       tft.setCursor(10, 70);
       tft.println(ssid);
       tft.setCursor(10, 110);
-      tft.println("IP:");
+      tft.println(WiFi.BSSIDstr());
       tft.setCursor(10, 140);
+tft.println("IP:");
+      tft.setCursor(10, 170);
       tft.println(WiFi.localIP());
     }
   }
