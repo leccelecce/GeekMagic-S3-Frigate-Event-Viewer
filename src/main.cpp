@@ -281,7 +281,7 @@ void showClock() {
     tft.setTextColor(TFT_WHITE, TFT_BLACK);
     int dateWidth = tft.textWidth(enDate);
     int dateX = (240 - dateWidth) / 2;
-    tft.setCursor(dateX, 0);
+    tft.setCursor(dateX, 10);
     tft.println(enDate);
     lastDate = enDate;
   }
