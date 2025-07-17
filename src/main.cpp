@@ -1119,7 +1119,7 @@ void setupWiFi() {
       tft.println("Connected to:");
       tft.setCursor(10, 70);
       tft.println(ssid);
-      tft.setCursor(10, 110);
+      tft.setCursor(10, 100);
       tft.println(WiFi.BSSIDstr());
       tft.setCursor(10, 140);
       tft.println("IP:");
