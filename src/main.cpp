@@ -772,6 +772,15 @@ Config getConfig() {
   return config;
 }
 
+String formatTimestamp(unsigned long mtime) {
+  char buf[20];
+  time_t t = (time_t)mtime;
+  struct tm *tm_info = localtime(&t);
+  if (!tm_info) return "";
+  strftime(buf, sizeof(buf), "%d/%m/%y %H:%M:%S", tm_info);
+  return String(buf);
+}
+
 // ------------------------
 //  SD_MMC images list helper
 // ------------------------
@@ -788,6 +797,7 @@ String getImagesList() {
   struct FileInfo {
     String name;
     String displayName;
+    unsigned long size;
     unsigned long mtime;
   };
   std::vector<FileInfo> files;
@@ -803,6 +813,7 @@ String getImagesList() {
       FileInfo info;
       info.name = fname;
       info.displayName = displayName;
+      info.size = (unsigned long)file.size();
       info.mtime = file.getLastWrite();
       files.push_back(info);
     }
@@ -817,7 +828,9 @@ String getImagesList() {
   for (const FileInfo& info : files) {
     html += "<li>";
     html += "<img src='" + info.name + "' alt='Event image'>";
-    html += "<a href='" + info.name + "'>" + info.displayName + "</a></li>";
+    html += "<a href='" + info.name + "'>" + info.displayName + "</a>";
+    html += "<span>" + String(info.size) + " bytes</span>";
+    html += " <span>" + formatTimestamp(info.mtime) + "</span></li>";
   }
 
   html += "</ul>";
