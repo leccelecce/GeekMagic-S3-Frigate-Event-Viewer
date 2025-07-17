@@ -466,7 +466,7 @@ void displayImageFromAPI(String url, String zone) {
       }
       http.end();
     } else {
-      Serial.println("[WARNING] HTTP GET failed: " + String(httpCode));
+      Serial.println("[WARNING] HTTP GET failed: " + String(httpCode) + " - " + http.getString());
       http.end();
       tries++;
       delay(2000);
