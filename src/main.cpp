@@ -1162,7 +1162,7 @@ void listDir(fs::FS &fs, const char *dirname, uint8_t levels)
     if (!entry)
     {break;}
 
-    Serial.println(entry.name());
+    Serial.printf("[SD_MMC] File: %s [size: %luB]\n", entry.name(), (unsigned long)entry.size());
     entry.close();
   }
 
@@ -1170,7 +1170,7 @@ void listDir(fs::FS &fs, const char *dirname, uint8_t levels)
 
 void setupSD_MMC() {
 
-  SD_MMC.setPins(SD_SCLK_PIN, SD_MOSI_PIN,SD_MISO_PIN);
+  SD_MMC.setPins(SD_SCLK_PIN, SD_MOSI_PIN, SD_MISO_PIN);
   if (!SD_MMC.begin("/sdcard", true, true, 4000000)) {
     Serial.println("[SD_MMC] Card Mount Failed");
     return;
