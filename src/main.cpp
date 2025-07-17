@@ -817,6 +817,7 @@ String getImagesList() {
       info.mtime = file.getLastWrite();
       files.push_back(info);
     }
+    file.close();
     file = root.openNextFile();
   }
   root.close();
