@@ -45,6 +45,7 @@ String mode = "alert"; // Default to "alert"
 String currentScreen = "clock"; // ["clock", "event", "status", "error"]
 TFT_eSPI tft = TFT_eSPI();
 AsyncWebServer server(80);
+HTTPClient http;
 AsyncMqttClient mqttClient;
 String mqttServer = "";
 int mqttPort = 1883;
@@ -55,6 +56,8 @@ unsigned long lastClockUpdate = 0;
 unsigned long lastKeyTime = 0;
 unsigned long screenTimeout = 0;
 unsigned long screenSince = 0;
+unsigned long lastFrigateRequest = 0;
+const unsigned long FRIGATE_REFRESH_INTERVAL = 25UL * 1000UL; // 25 seconds
 // --- WEATHER ---
 String weatherTempDay = "";
 float weatherHumidity = 0.0;
@@ -380,9 +383,27 @@ void displayImageFromAPI(String url, String zone) {
 
   while (tries < maxTries && !success) {
     Serial.print("[DEBUG] Attempt "); Serial.print(tries + 1); Serial.print("/"); Serial.println(url);
-    HTTPClient http;
+    
+  unsigned long timeAgoMillis = millis() - lastFrigateRequest;
+
+    if (timeAgoMillis < 10000) {
+      Serial.printf("[FRIGATE] Last Frigate Request: %lums ago\n", timeAgoMillis);
+    } else {
+      Serial.printf("[FRIGATE] Last Frigate Request: %lus ago\n", timeAgoMillis / 1000);
+    }
+
+    lastFrigateRequest = millis();
+
+    http.end(); // Ensure previous connection is closed
+    http.setTimeout(10000);
     http.begin(url);
+
+    unsigned long start = millis();
     int httpCode = http.GET();
+    unsigned long end = millis();
+
+    Serial.printf("[FRIGATE] Elapsed GET time: %lu ms\n", end - start);
+
     if (httpCode == 200) {
       uint32_t len = http.getSize();
       if (len > MAX_FILE_SIZE) {
@@ -395,6 +416,7 @@ void displayImageFromAPI(String url, String zone) {
         http.end();
         return;
       }
+      Serial.println("[DEBUG] Image size: " + String(len) + " bytes");
 
       // Remove oldest image if maxImages is reached
       int jpgCount = 0;
@@ -1079,7 +1101,7 @@ void setupWiFi() {
       fallbackAP = true;
     } else {
       Serial.println("WiFi connected to: " + ssid);
-Serial.println("BSSID: " + WiFi.BSSIDstr());
+      Serial.println("BSSID: " + WiFi.BSSIDstr());
       Serial.println("IP address: " + WiFi.localIP().toString());
       setScreen("statusWiFi", 20, "show_wifi_status");
       tft.setTextColor(TFT_GREEN, TFT_BLACK);
@@ -1091,7 +1113,7 @@ Serial.println("BSSID: " + WiFi.BSSIDstr());
       tft.setCursor(10, 110);
       tft.println(WiFi.BSSIDstr());
       tft.setCursor(10, 140);
-tft.println("IP:");
+      tft.println("IP:");
       tft.setCursor(10, 170);
       tft.println(WiFi.localIP());
     }
@@ -1174,9 +1196,67 @@ void setup() {
   mqttClient.setCredentials(mqttUser.c_str(), mqttPass.c_str());
   if (WiFi.status() == WL_CONNECTED) mqttClient.connect();
 
+  if (WiFi.status() == WL_CONNECTED) {
+
+    http.end(); // Ensure any previous instance is closed
+
+    String healthCheckUrl = "http://" + frigateIP + ":" + String(frigatePort) + "/api/version";
+    http.setTimeout(20000);// allow plenty of time to establish the initial connection which can be 8-4 seconds
+    
+    http.begin(healthCheckUrl);
+    
+    Serial.println("[FRIGATE] Sending GET: " + healthCheckUrl);
+
+    unsigned long start = millis();
+    int httpCode = http.GET();
+    unsigned long end = millis();
+
+    Serial.printf("[FRIGATE] Elapsed time: %lu ms\n", end - start);
+
+    // Expected response: "Frigate is running. Alive and healthy!"
+    if (httpCode == 200) {
+      Serial.println("[FRIGATE] Successfully connected to Frigate API at: " + healthCheckUrl);
+      Serial.println("[FRIGATE] Frigate API v" + http.getString());
+    } else {
+      Serial.println("[ERROR] failed connecting to Frigate API at: " + healthCheckUrl + " with code: " + String(httpCode));
+      Serial.println("[ERROR] HTTP err message: " + http.errorToString(httpCode));
+    }
+
+    http.end();
+
+  } 
+
   fetchWeather();
   lastWeatherFetch = millis();
 }
+
+void frigateKeepAlive() { 
+   if (WiFi.status() == WL_CONNECTED) {
+
+    http.end(); // Ensure any previous instance is closed
+
+    String healthCheckUrl = "http://" + frigateIP + ":" + String(frigatePort) + "/api/version";
+    http.setTimeout(1000);// short timeout for keep-alive
+    
+    http.begin(healthCheckUrl);
+    
+    //Serial.println("[FRIGATE] Sending GET: " + healthCheckUrl);
+
+    unsigned long start = millis();
+    int httpCode = http.GET();
+    unsigned long end = millis();
+
+    if (end - start > 50) {
+      Serial.printf("[FRIGATE] Keep-alive took too long: %lu ms\n", end - start);
+    }
+
+    if (httpCode != 200) {
+      Serial.printf("[FRIGATE] Keep-alive failed with code: %d\n", httpCode);
+      Serial.println("[FRIGATE] HTTP error message: " + http.errorToString(httpCode));
+    }
+
+    http.end();
+  }
 }
 
 // ------------------------
@@ -1205,6 +1285,11 @@ void loop() {
   if (currentScreen != "clock" && screenTimeout > 0 && millis() - screenSince > screenTimeout) {
     setScreen("clock", 0, "timeout");
   }
+
+  if (millis() - lastFrigateRequest > FRIGATE_REFRESH_INTERVAL) {
+    lastFrigateRequest = millis();
+    frigateKeepAlive();
+  }  
 
   if (millis() - lastWeatherFetch > WEATHER_REFRESH_INTERVAL) {
     lastWeatherFetch = millis();
