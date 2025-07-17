@@ -403,6 +403,7 @@ void displayImageFromAPI(String url, String zone) {
       if (len > MAX_FILE_SIZE) {
         Serial.println("[ERROR] Image too large: " + String(len) + " bytes");
         setScreen("error", 10, "displayImageFromAPI");
+        tft.setCursor(10, 30);
         tft.setTextColor(TFT_RED);
         tft.setTextSize(2);
         tft.println("Image too large");
