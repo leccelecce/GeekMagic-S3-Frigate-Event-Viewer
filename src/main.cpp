@@ -21,10 +21,6 @@
 // ------------------------
 Preferences preferences;
 
-// Backlight configuration
-#define TFT_BL 14
-#define LCD_BL_PWM_CHANNEL 0
-
 // Constants
 const char* MQTT_TOPIC = "frigate/reviews";
 const char* CLIENT_ID = "ESP32Client";
@@ -83,17 +79,6 @@ unsigned long lastEventCall = 0;
 //  Forward Declarations
 // ------------------------
 void setScreen(const String& newScreen, unsigned long timeoutSec = 0, const char* by = "");
-
-// ------------------------
-//  Backlight
-// ------------------------
-void set_tft_brt(int brt) {
-  brt = constrain(brt, 0, 255);
-  ledcSetup(LCD_BL_PWM_CHANNEL, 5000, 8);
-  ledcAttachPin(TFT_BL, LCD_BL_PWM_CHANNEL);
-  ledcWrite(LCD_BL_PWM_CHANNEL, 255 - brt);
-  Serial.printf("[BACKLIGHT] Brightness set to: %d (inverted: %d)\n", brt, 255 - brt);
-}
 
 // ------------------------
 //  JPEG render callback
@@ -732,11 +717,6 @@ struct Config {
   String weatherApiKey;
   String weatherCity;
   int maxImages;
-  int brightness;
-  int autoBrtStartHr;
-  int autoBrtEndHr;
-  int autoBrtLvl;
-  bool autoBrtEnabled;
   int timezone;
 };
 
@@ -756,48 +736,9 @@ Config getConfig() {
   config.weatherApiKey = preferences.getString("weatherApiKey", "");
   config.weatherCity = preferences.getString("weatherCity", "");
   config.maxImages = preferences.getInt("maxImages", 10);
-  config.brightness = preferences.getInt("brightness", 100);
-  config.autoBrtStartHr = preferences.getInt("autoBrtStartHr", 0);
-  config.autoBrtEndHr = preferences.getInt("autoBrtEndHr", 0);
-  config.autoBrtLvl = preferences.getInt("autoBrtLvl", 0);
-  config.autoBrtEnabled = preferences.getBool("autoBrtEnabled", false);
   config.timezone = preferences.getInt("timezone", 0);
   preferences.end();
   return config;
-}
-
-void AutoBrightnessSchedule() {
-  Config cfg = getConfig();
-  Serial.printf("[AUTO-BRT] autoBrtEnabled: %d, autoBrtLvl: %d, brightness: %d\n", cfg.autoBrtEnabled, cfg.autoBrtLvl, cfg.brightness);
-  if (!cfg.autoBrtEnabled) {
-    Serial.println("[AUTO-BRT] Automatic brightness disabled, setting to brightness");
-    set_tft_brt(cfg.brightness);
-    return;
-  }
-
-  time_t now = time(nullptr);
-  struct tm *tm_info = localtime(&now);
-  if (!tm_info) {
-    Serial.println("[AUTO-BRT] Time not synchronized!");
-    return;
-  }
-
-  int currentHour = tm_info->tm_hour;
-  bool inRange = false;
-
-  if (cfg.autoBrtStartHr < cfg.autoBrtEndHr) {
-    inRange = (currentHour >= cfg.autoBrtStartHr && currentHour < cfg.autoBrtEndHr);
-  } else {
-    inRange = (currentHour >= cfg.autoBrtStartHr || currentHour < cfg.autoBrtEndHr);
-  }
-  Serial.printf("[AUTO-BRT] Current hour: %d, inRange: %d (start: %d, end: %d)\n", currentHour, inRange, cfg.autoBrtStartHr, cfg.autoBrtEndHr);
-
-  int newBrt = inRange ? cfg.autoBrtLvl : cfg.brightness;
-  set_tft_brt(newBrt);
-  Serial.printf("[AUTO-BRT] Applied brightness: %d (hour=%d)\n", newBrt, currentHour);
-
-  static bool lastInRange = false;
-  lastInRange = inRange;
 }
 
 // ------------------------
@@ -906,11 +847,6 @@ void setupWebInterface() {
     html.replace("{{weatherApiKey_exists}}", config.weatherApiKey != "" ? "1" : "0");
     html.replace("{{weatherCity}}", config.weatherCity);
     html.replace("{{timezone}}", String(config.timezone));
-    html.replace("{{brightness}}", String(config.brightness));
-    html.replace("{{autoBrtLvl}}", String(config.autoBrtLvl));
-    html.replace("{{autoBrtEnabled}}", getCheckedAttribute(config.autoBrtEnabled));
-    html.replace("{{autoBrtStartHr}}", String(config.autoBrtStartHr));
-    html.replace("{{autoBrtEndHr}}", String(config.autoBrtEndHr));
     html.replace("{{totalBytes}}", String(SPIFFS.totalBytes() / 1024));
     html.replace("{{usedBytes}}", String(SPIFFS.usedBytes() / 1024));
     html.replace("{{freeBytes}}", String((SPIFFS.totalBytes() - SPIFFS.usedBytes()) / 1024));
@@ -1016,23 +952,6 @@ void setupWebInterface() {
     int newTimezone = getIntParam(request, "timezone", 0);
     preferences.putInt("timezone", newTimezone);
   
-    // Brightness
-    int newBrightness = getIntParam(request, "brightness", 0);
-    if (newBrightness >= 0 && newBrightness <= 255) {
-      preferences.putInt("brightness", newBrightness);
-    }
-  
-    // Auto-brightness
-    int startHour = getIntParam(request, "autoBrtStartHr", 0);
-    int endHour   = getIntParam(request, "autoBrtEndHr", 0);
-    int brtLevel  = getIntParam(request, "autoBrtLvl", 0);
-    bool enabled  = request->hasParam("autoBrtEnabled", true);
-  
-    preferences.putInt("autoBrtStartHr", constrain(startHour, 0, 23));
-    preferences.putInt("autoBrtEndHr", constrain(endHour, 0, 23));
-    preferences.putInt("autoBrtLvl", constrain(brtLevel, 0, 255));
-    preferences.putBool("autoBrtEnabled", enabled);
-  
     preferences.end();
   
     bool mqttConfigChanged = (newMqtt != mqttServer || newMqttPort != mqttPort || newMqttUser != mqttUser || (newMqttPass != "******" && newMqttPass != mqttPass));
@@ -1048,8 +967,6 @@ void setupWebInterface() {
       mqttClient.setCredentials(mqttUser.c_str(), mqttPass.c_str());
       mqttClient.connect();
     }
-
-    AutoBrightnessSchedule();
 
     String cacheBuster = "/?v=" + String(millis());
     request->redirect(cacheBuster);
@@ -1219,10 +1136,6 @@ void setup() {
   tft.begin();
   tft.setRotation(0);
 
-  preferences.begin("config", false);
-  int brightness = getConfig().brightness;
-  preferences.end();
-
   tft.fillScreen(TFT_BLACK);
 
   TJpgDec.setCallback(jpgRenderCallback);
@@ -1263,7 +1176,7 @@ void setup() {
 
   fetchWeather();
   lastWeatherFetch = millis();
-  AutoBrightnessSchedule();
+}
 }
 
 // ------------------------
@@ -1277,9 +1190,7 @@ void loop() {
 
   static wl_status_t lastStatus = WL_CONNECTED;
   static unsigned long lastReconnectAttempt = 0;
-  static unsigned long lastAutoBrtCheck = 0;
   const unsigned long RECONNECT_INTERVAL = 5000;
-  const unsigned long AUTO_BRT_INTERVAL = 60000; // 60 seconds interval
 
   if (WiFi.status() == WL_CONNECTED && lastStatus != WL_CONNECTED && millis() - lastReconnectAttempt > RECONNECT_INTERVAL) {
     mqttClient.connect();
@@ -1299,11 +1210,6 @@ void loop() {
     lastWeatherFetch = millis();
     fetchWeather();
     if (currentScreen == "clock") showClock();
-  }
-
-  if (millis() - lastAutoBrtCheck > AUTO_BRT_INTERVAL) {
-    AutoBrightnessSchedule();
-    lastAutoBrtCheck = millis();
   }
 
   if (currentScreen == "clock" && millis() - lastClockUpdate > CLOCK_REFRESH_INTERVAL) {
