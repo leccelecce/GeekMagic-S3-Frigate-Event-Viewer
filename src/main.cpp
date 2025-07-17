@@ -9,12 +9,21 @@
 #include <Preferences.h>
 #include <HTTPClient.h>
 #include <FS.h>
+#include <SD_MMC.h>
 #include <SPIFFS.h>
 #include <time.h>
 #include <ArduinoJson.h>
 #include <Update.h>
 #include <vector>
 #include <algorithm>
+
+//
+// Hardware Settings
+//
+//Micro SD Card PIN
+#define SD_SCLK_PIN 21
+#define SD_MOSI_PIN 18
+#define SD_MISO_PIN 16
 
 // ------------------------
 //  Globals & Config
@@ -116,8 +125,8 @@ void handleSlideshow() {
   // Check if it's time for the next image
   if (now - slideshowStart >= currentSlideshowIdx * slideshowInterval) {
     String filename = jpgQueue[currentSlideshowIdx % jpgQueue.size()];
-    if (SPIFFS.exists(filename)) {
-      File file = SPIFFS.open(filename, FILE_READ);
+    if (SD_MMC.exists(filename)) {
+      File file = SD_MMC.open(filename, FILE_READ);
       if (file) {
         uint32_t fileSize = file.size();
         uint8_t* jpgData = (uint8_t*)malloc(fileSize);
@@ -178,8 +187,8 @@ void setScreen(const String& newScreen, unsigned long timeoutSec, const char* by
     } else if (!slideshowActive && !jpgQueue.empty()) {
       // Display single image
       String filename = jpgQueue[0];
-      if (SPIFFS.exists(filename)) {
-        File file = SPIFFS.open(filename, FILE_READ);
+      if (SD_MMC.exists(filename)) {
+        File file = SD_MMC.open(filename, FILE_READ);
         if (file) {
           uint32_t fileSize = file.size();
           uint8_t* jpgData = (uint8_t*)malloc(fileSize);
@@ -372,7 +381,7 @@ void displayImageFromAPI(String url, String zone) {
   }
 
   // Skip if image already exists
-  if (SPIFFS.exists(filename)) {
+  if (SD_MMC.exists(filename)) {
     Serial.print("[DEBUG] Image already exists: "); Serial.println(filename);
     if (std::find(jpgQueue.begin(), jpgQueue.end(), filename) == jpgQueue.end()) {
       jpgQueue.push_back(filename);
@@ -422,7 +431,7 @@ void displayImageFromAPI(String url, String zone) {
       int jpgCount = 0;
       String oldestFile = "";
       unsigned long oldestTime = ULONG_MAX;
-      File root = SPIFFS.open("/events");
+      File root = SD_MMC.open("/events");
       if (root && root.isDirectory()) {
         File file = root.openNextFile();
         while (file) {
@@ -442,7 +451,7 @@ void displayImageFromAPI(String url, String zone) {
         }
         root.close();
         if (jpgCount >= maxImages && !oldestFile.isEmpty()) {
-          SPIFFS.remove(oldestFile);
+          SD_MMC.remove(oldestFile);
           Serial.println("[DEBUG] Removed: " + oldestFile);
         }
       }
@@ -457,7 +466,7 @@ void displayImageFromAPI(String url, String zone) {
 
       if (stream->available()) {
         size_t bytesRead = stream->readBytes((char*)jpgData, len);
-        File file = SPIFFS.open(filename, FILE_WRITE);
+        File file = SD_MMC.open(filename, FILE_WRITE);
         if (file) {
           size_t written = file.write(jpgData, len);
           file.close();
@@ -764,14 +773,14 @@ Config getConfig() {
 }
 
 // ------------------------
-//  SPIFFS images list helper
+//  SD_MMC images list helper
 // ------------------------
 String getImagesList() {
   String html = "<ul class='image-list'>";
-  File root = SPIFFS.open("/events");
+  File root = SD_MMC.open("/events");
   
   if (!root || !root.isDirectory()) {
-    html += "<li>Could not open SPIFFS</li>";
+    html += "<li>Could not open SD_MMC</li>";
     html += "</ul>";
     return html;
   }
@@ -828,8 +837,8 @@ String getCheckedAttribute(bool isChecked) {
 void setupWebInterface() {
   server.serveStatic("/styles.css", SPIFFS, "/styles.css");
   server.serveStatic("/scripts.js", SPIFFS, "/scripts.js");
-  server.serveStatic("/events", SPIFFS, "/events");
   server.serveStatic("/icons", SPIFFS, "/icons");
+  server.serveStatic("/events", SD_MMC, "/events");// event images stored on SD for longevity / capacity
 
   server.on("/", HTTP_GET, [](AsyncWebServerRequest *request) {
     Config config = getConfig();
@@ -869,9 +878,9 @@ void setupWebInterface() {
     html.replace("{{weatherApiKey_exists}}", config.weatherApiKey != "" ? "1" : "0");
     html.replace("{{weatherCity}}", config.weatherCity);
     html.replace("{{timezone}}", String(config.timezone));
-    html.replace("{{totalBytes}}", String(SPIFFS.totalBytes() / 1024));
-    html.replace("{{usedBytes}}", String(SPIFFS.usedBytes() / 1024));
-    html.replace("{{freeBytes}}", String((SPIFFS.totalBytes() - SPIFFS.usedBytes()) / 1024));
+    html.replace("{{totalBytes}}", String(SD_MMC.totalBytes() / 1024));
+    html.replace("{{usedBytes}}", String(SD_MMC.usedBytes() / 1024));
+    html.replace("{{freeBytes}}", String((SD_MMC.totalBytes() - SD_MMC.usedBytes()) / 1024));
     html.replace("{{imagesList}}", getImagesList());
 
     AsyncWebServerResponse *response = request->beginResponse(200, "text/html", html);
@@ -1028,7 +1037,7 @@ void setupWebInterface() {
 
   server.on("/delete_all", HTTP_GET, [](AsyncWebServerRequest *request) {
     int deleted = 0;
-    File root = SPIFFS.open("/events");
+    File root = SD_MMC.open("/events");
     if (!root || !root.isDirectory()) {
       request->send(500, "text/plain", "Could not open /events");
       return;
@@ -1040,7 +1049,7 @@ void setupWebInterface() {
         if (!fname.startsWith("/")) {
           fname = "/events/" + fname;
         }
-        if (SPIFFS.exists(fname) && SPIFFS.remove(fname)) {
+        if (SD_MMC.exists(fname) && SD_MMC.remove(fname)) {
           deleted++;
         }
       }
@@ -1142,6 +1151,64 @@ void setupWiFi() {
   setupWebInterface();
 }
 
+void listDir(fs::FS &fs, const char *dirname, uint8_t levels)
+{
+ File root = fs.open(dirname,"r");
+ root.rewindDirectory();
+      
+  while (true)
+  {
+    File entry =  root.openNextFile();
+    if (!entry)
+    {break;}
+
+    Serial.println(entry.name());
+    entry.close();
+  }
+
+}
+
+void setupSD_MMC() {
+
+  SD_MMC.setPins(SD_SCLK_PIN, SD_MOSI_PIN,SD_MISO_PIN);
+  if (!SD_MMC.begin("/sdcard", true, true, 4000000)) {
+    Serial.println("[SD_MMC] Card Mount Failed");
+    return;
+  }
+
+  uint8_t cardType = SD_MMC.cardType();
+
+  if (cardType == CARD_NONE) {
+    Serial.println("[SD_MMC] No SD_MMC card attached");
+    return;
+  }
+
+  Serial.print("[SD_MMC] SD Card Type: ");
+  if(cardType == CARD_MMC){
+    Serial.println("MMC");
+  } else if(cardType == CARD_SD){
+    Serial.println("SDSC");
+  } else if(cardType == CARD_SDHC){
+    Serial.println("SDHC");
+  } else {
+    Serial.println("UNKNOWN");
+  }
+    
+  uint64_t cardSize = SD_MMC.cardSize() / (1024 * 1024);
+
+  Serial.printf("[SD_MMC] Card Size: %lluMB\n", cardSize);
+
+  if (!SD_MMC.exists("/events")) {
+    SD_MMC.mkdir("/events");
+  }
+
+  Serial.println("[SD_MMC] Listing contents");
+  listDir(SD_MMC, "/events", 0);
+  
+}
+
+
+
 // ------------------------
 // Arduino setup()
 // ------------------------
@@ -1187,6 +1254,8 @@ void setup() {
   Serial.printf("configTime: gmtOffset_sec = %ld\n", gmtOffset_sec);
   configTime(gmtOffset_sec, 0, "pool.ntp.org");
 
+  setupSD_MMC();
+
   setupWiFi();
 
   mqttClient.onConnect(onMqttConnect);
@@ -1229,6 +1298,7 @@ void setup() {
   fetchWeather();
   lastWeatherFetch = millis();
 }
+
 
 void frigateKeepAlive() { 
    if (WiFi.status() == WL_CONNECTED) {
