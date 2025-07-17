@@ -476,6 +476,7 @@ void displayImageFromAPI(String url, String zone) {
   if (!success) {
     Serial.println("[ERROR] Failed to load image after " + String(maxTries) + " attempts");
     setScreen("error", 10, "displayImageFromAPI");
+    tft.setCursor(10, 30);
     tft.setTextColor(TFT_RED);
     tft.setTextSize(2);
     tft.println("Loading failed");
