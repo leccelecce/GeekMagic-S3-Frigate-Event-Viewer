@@ -5,7 +5,9 @@
 
 extern String frigateIP;
 extern int frigatePort;
+
 extern unsigned long lastFrigateRequest;
+
 extern std::vector<String> jpgQueue;
 extern bool imagePending;
 extern String pendingImageUrl;
