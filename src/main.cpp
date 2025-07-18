@@ -17,6 +17,8 @@
 #include <vector>
 #include <algorithm>
 #include "weather.h"
+#include "frigate.h"
+#include "mqtt.h"
 
 //
 // Hardware Settings
@@ -32,7 +34,6 @@
 Preferences preferences;
 
 // Constants
-const char* MQTT_TOPIC = "frigate/reviews";
 const char* CLIENT_ID = "ESP32Client";
 const char* DEFAULT_SSID = "ESP32_AP";
 const char* DEFAULT_PASSWORD = "admin1234";
@@ -43,39 +44,29 @@ const char* daysShort[] = {"Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"};
 const char* months[] = {"Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"};
 
 // Variables
-String mqttUser = "";
-String mqttPass = "";
-String frigateIP = "";
 String lastDate = "";
 String mode = "alert"; // Default to "alert"
 String currentScreen = "clock"; // ["clock", "event", "status", "error"]
 TFT_eSPI tft = TFT_eSPI();
 AsyncWebServer server(80);
 HTTPClient http;
-AsyncMqttClient mqttClient;
-String mqttServer = "";
-int mqttPort = 1883;
-int frigatePort = 5000;
+
+
 int displayDuration = 30;
 int maxImages = 30;
 unsigned long lastClockUpdate = 0;
 unsigned long lastKeyTime = 0;
 unsigned long screenTimeout = 0;
 unsigned long screenSince = 0;
-unsigned long lastFrigateRequest = 0;
 const unsigned long FRIGATE_REFRESH_INTERVAL = 25UL * 1000UL; // 25 seconds
 // --- WEATHER ---
 unsigned long lastWeatherFetch = 0;
 const unsigned long WEATHER_REFRESH_INTERVAL = 15UL * 60UL * 1000UL; // 10 minutes
 // --- Slideshow ---
-String pendingImageUrl = "";
-bool imagePending = false;
-String pendingZone = "";
 bool slideshowActive = false;
 unsigned long slideshowStart = 0;
 int currentSlideshowIdx = 0;
 unsigned long slideshowInterval = 3000; // Interval in ms
-std::vector<String> jpgQueue; // Array of full paths to JPG files
 std::vector<unsigned long> eventCallTimes;
 unsigned long lastEventCall = 0;
 
@@ -330,250 +321,6 @@ void showClock() {
   currentScreen = "clock";
 }
 
-// ------------------------
-//  Display image from API
-// ------------------------
-void displayImageFromAPI(String url, String zone) {
-  const int maxTries = 5;
-  int tries = 0;
-  bool success = false;
-  const size_t MAX_FILE_SIZE = 40 * 1024;
-
-  // Construct detectionId from URL
-  String detectionId = url.substring(url.lastIndexOf("/events/") + 8, url.indexOf("/snapshot.jpg"));
-  int dashIndex = detectionId.indexOf("-");
-  String suffix = (dashIndex > 0) ? detectionId.substring(dashIndex + 1) : detectionId;
-
-  // New filename: <suffix>-<zone>.jpg
-  String filename = "/events/" + suffix + "-" + zone + ".jpg";
-  if (filename.length() >= 32) {
-    filename = "/events/default.jpg";
-  }
-
-  // Skip if image already exists
-  if (SD_MMC.exists(filename)) {
-    Serial.print("[DEBUG] Image already exists: "); Serial.println(filename);
-    if (std::find(jpgQueue.begin(), jpgQueue.end(), filename) == jpgQueue.end()) {
-      jpgQueue.push_back(filename);
-    }
-    setScreen("event", displayDuration, "displayImageFromAPI");
-    return;
-  }
-
-  while (tries < maxTries && !success) {
-    Serial.print("[DEBUG] Attempt "); Serial.print(tries + 1); Serial.print("/"); Serial.println(url);
-    
-  unsigned long timeAgoMillis = millis() - lastFrigateRequest;
-
-    if (timeAgoMillis < 10000) {
-      Serial.printf("[FRIGATE] Last Frigate Request: %lums ago\n", timeAgoMillis);
-    } else {
-      Serial.printf("[FRIGATE] Last Frigate Request: %lus ago\n", timeAgoMillis / 1000);
-    }
-
-    lastFrigateRequest = millis();
-
-    http.end(); // Ensure previous connection is closed
-    http.setTimeout(10000);
-    http.begin(url);
-
-    unsigned long start = millis();
-    int httpCode = http.GET();
-    unsigned long end = millis();
-
-    Serial.printf("[FRIGATE] Elapsed GET time: %lu ms\n", end - start);
-
-    if (httpCode == 200) {
-      uint32_t len = http.getSize();
-      if (len > MAX_FILE_SIZE) {
-        Serial.println("[ERROR] Image too large: " + String(len) + " bytes");
-        setScreen("error", 10, "displayImageFromAPI");
-        tft.setCursor(10, 30);
-        tft.setTextColor(TFT_RED);
-        tft.setTextSize(2);
-        tft.println("Image too large");
-        http.end();
-        return;
-      }
-      Serial.println("[DEBUG] Image size: " + String(len) + " bytes");
-
-      // Remove oldest image if maxImages is reached
-      int jpgCount = 0;
-      String oldestFile = "";
-      unsigned long oldestTime = ULONG_MAX;
-      File root = SD_MMC.open("/events");
-      if (root && root.isDirectory()) {
-        File file = root.openNextFile();
-        while (file) {
-          String fname = file.name();
-          if (fname.endsWith(".jpg")) {
-            jpgCount++;
-            if (!fname.startsWith("/")) {
-              fname = "/events/" + fname;
-            }
-            unsigned long mtime = file.getLastWrite();
-            if (mtime < oldestTime) {
-              oldestTime = mtime;
-              oldestFile = fname;
-            }
-          }
-          file = root.openNextFile();
-        }
-        root.close();
-        if (jpgCount >= maxImages && !oldestFile.isEmpty()) {
-          SD_MMC.remove(oldestFile);
-          Serial.println("[DEBUG] Removed: " + oldestFile);
-        }
-      }
-
-      WiFiClient *stream = http.getStreamPtr();
-      uint8_t *jpgData = (uint8_t*)malloc(len);
-      if (!jpgData) {
-        Serial.println("[ERROR] Memory allocation failed!");
-        http.end();
-        return;
-      }
-
-      if (stream->available()) {
-        size_t bytesRead = stream->readBytes((char*)jpgData, len);
-        File file = SD_MMC.open(filename, FILE_WRITE);
-        if (file) {
-          size_t written = file.write(jpgData, len);
-          file.close();
-          if (written == len) {
-            Serial.println("[DEBUG] Image saved: " + filename);
-            success = true;
-            if (std::find(jpgQueue.begin(), jpgQueue.end(), filename) == jpgQueue.end()) {
-              jpgQueue.push_back(filename);
-            }
-            setScreen("event", displayDuration, "displayImageFromAPI");
-          }
-        }
-        free(jpgData);
-      }
-      http.end();
-    } else {
-      Serial.println("[WARNING] HTTP GET failed: " + String(httpCode) + " - " + http.getString());
-      http.end();
-      tries++;
-      delay(2000);
-    }
-  }
-
-  if (!success) {
-    Serial.println("[ERROR] Failed to load image after " + String(maxTries) + " attempts");
-    setScreen("error", 10, "displayImageFromAPI");
-    tft.setCursor(10, 30);
-    tft.setTextColor(TFT_RED);
-    tft.setTextSize(2);
-    tft.println("Loading failed");
-  }
-}
-
-// ------------------------
-//  MQTT callbacks
-// ------------------------
-void onMqttConnect(bool sessionPresent) {
-  Serial.println("[MQTT] Connected!");
-  mqttClient.subscribe(MQTT_TOPIC, 0);
-}
-
-void onMqttDisconnect(AsyncMqttClientDisconnectReason reason) {
-  static unsigned long lastReconnectAttempt = 0;
-  const unsigned long reconnectInterval = 50000;
-  Serial.print("[MQTT] Connection lost with reason: "); Serial.println(static_cast<int>(reason));
-  unsigned long now = millis();
-  if (now - lastReconnectAttempt >= reconnectInterval) {
-    setScreen("error", 50, "onMqttDisconnect");
-    tft.setTextColor(TFT_RED, TFT_BLACK);
-    tft.setTextSize(2);
-    tft.setCursor(0, 0);
-    tft.println("MQTT ERROR!");
-    Serial.println("[MQTT] Attempting to reconnect...");
-    mqttClient.setServer(mqttServer.c_str(), mqttPort);
-    mqttClient.setCredentials(mqttUser.c_str(), mqttPass.c_str());
-    mqttClient.connect();
-    lastReconnectAttempt = now;
-  } else {
-    Serial.print("[MQTT] Waiting for next reconnect attempt in "); 
-    Serial.print((reconnectInterval - (now - lastReconnectAttempt)) / 1000);
-    Serial.println(" seconds");
-  }
-}
-
-// ------------------------
-//  MQTT message handler
-// ------------------------
-void onMqttMessage(
-    char* topic,
-    char* payload,
-    AsyncMqttClientMessageProperties properties,
-    size_t len,
-    size_t index,
-    size_t total
-) {
-  String payloadStr;
-  for (size_t i = 0; i < len; i++) payloadStr += (char)payload[i];
-  Serial.println("====[MQTT RECEIVED]====");
-  Serial.print("Topic:   "); Serial.println(topic);
-  Serial.print("Payload: "); Serial.println(payloadStr);
-
-  JsonDocument doc;
-  DeserializationError error = deserializeJson(doc, payload, len);
-  if (error) {
-    Serial.print("[DEBUG] JSON parsing error: "); Serial.println(error.c_str());
-    setScreen("error", 30, "onMqttMessage");
-    tft.setTextColor(TFT_RED);
-    tft.setTextSize(2);
-    tft.println("JSON Parse Error");
-    return;
-  }
-
-  String type = doc["type"] | "";
-  JsonObject msg;
-  String severity = "";
-
-  if (type == "new" && doc["before"].is<JsonObject>()) {
-    msg = doc["before"].as<JsonObject>();
-  } else if (type == "update" && doc["after"].is<JsonObject>()) {
-    msg = doc["after"].as<JsonObject>();
-  } else {
-    Serial.println("[DEBUG] Ignoring message of type '" + type + "'");
-    return;
-  }
-
-  if (msg["severity"].is<String>()) severity = msg["severity"].as<String>();
-
-  String modeClean = mode; modeClean.trim(); modeClean.toLowerCase();
-  String severityClean = severity; severityClean.trim(); severityClean.toLowerCase();
-  bool show = modeClean.indexOf(severityClean) >= 0;
-
-  if (show && frigateIP.length() > 0 && msg["data"].is<JsonObject>() && msg["data"]["detections"].is<JsonArray>()) {
-    JsonArray detections = msg["data"]["detections"].as<JsonArray>();
-    JsonArray zonesArray = msg["data"]["zones"].is<JsonArray>() ? msg["data"]["zones"].as<JsonArray>() : JsonArray();
-    String zone = "outside-zone";
-    if (!zonesArray.isNull() && zonesArray.size() > 0) {
-      zone = String(zonesArray[zonesArray.size() - 1].as<const char*>());
-    }
-  
-    if (!detections.isNull() && detections.size() > 0) {
-      for (JsonVariant d : detections) {
-        String id = d.as<String>();
-        int dashIndex = id.indexOf("-");
-        String suffix = (dashIndex > 0) ? id.substring(dashIndex + 1) : id;
-        String filename = "/events/" + suffix + "-" + zone + ".jpg";
-        if (std::find(jpgQueue.begin(), jpgQueue.end(), filename) == jpgQueue.end()) {
-          jpgQueue.push_back(filename);
-        }
-      }
-      String url = "http://" + frigateIP + ":" + String(frigatePort) +
-                   "/api/events/" + detections[0].as<String>() + "/snapshot.jpg?crop=1&height=240";
-      imagePending = true;
-      pendingImageUrl = url;
-      pendingZone = zone;
-    }
-  }
-}
 
 
 // ------------------------
@@ -1120,12 +867,8 @@ void setup() {
 
   setupWiFi();
 
-  mqttClient.onConnect(onMqttConnect);
-  mqttClient.onDisconnect(onMqttDisconnect);
-  mqttClient.onMessage(onMqttMessage);
-  mqttClient.setServer(mqttServer.c_str(), mqttPort);
-  mqttClient.setCredentials(mqttUser.c_str(), mqttPass.c_str());
-  if (WiFi.status() == WL_CONNECTED) mqttClient.connect();
+  setupMqtt();
+
 
   if (WiFi.status() == WL_CONNECTED) {
 
@@ -1162,34 +905,6 @@ void setup() {
 }
 
 
-void frigateKeepAlive() { 
-   if (WiFi.status() == WL_CONNECTED) {
-
-    http.end(); // Ensure any previous instance is closed
-
-    String healthCheckUrl = "http://" + frigateIP + ":" + String(frigatePort) + "/api/version";
-    http.setTimeout(1000);// short timeout for keep-alive
-    
-    http.begin(healthCheckUrl);
-    
-    //Serial.println("[FRIGATE] Sending GET: " + healthCheckUrl);
-
-    unsigned long start = millis();
-    int httpCode = http.GET();
-    unsigned long end = millis();
-
-    if (end - start > 50) {
-      Serial.printf("[FRIGATE] Keep-alive took too long: %lu ms\n", end - start);
-    }
-
-    if (httpCode != 200) {
-      Serial.printf("[FRIGATE] Keep-alive failed with code: %d\n", httpCode);
-      Serial.println("[FRIGATE] HTTP error message: " + http.errorToString(httpCode));
-    }
-
-    http.end();
-  }
-}
 
 // ------------------------
 // Arduino loop()
