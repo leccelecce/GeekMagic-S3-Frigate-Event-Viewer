@@ -55,6 +55,7 @@ TFT_eSPI tft = TFT_eSPI();
 AsyncWebServer server(80);
 HTTPClient http;
 
+bool restartPending = false;// used to receive requests from /reboot HTTP endpoint
 
 int displayDuration = 30;
 int maxImages = 30;
@@ -726,8 +727,7 @@ void setupWebInterface() {
   server.on("/reboot", HTTP_POST, [](AsyncWebServerRequest *request) {
     Serial.println("[WEB] Reboot requested via /reboot");
     request->send(200, "text/plain", "Rebooting ESP32...");
-    delay(500);
-    ESP.restart();
+    restartPending = true;
 });
 
   server.begin();
@@ -960,6 +960,13 @@ void setup() {
 // Arduino loop()
 // ------------------------
 void loop() {
+
+  if (restartPending) {
+    Serial.println("[RESTART] Restarting ESP32...");
+    delay(1000);
+    ESP.restart();
+  }
+
   if (imagePending) {
     imagePending = false;
     displayImageFromAPI(pendingImageUrl, pendingZone);
