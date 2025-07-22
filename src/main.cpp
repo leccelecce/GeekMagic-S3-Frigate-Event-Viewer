@@ -665,6 +665,7 @@ void setupWebInterface() {
     int deleted = 0;
     File root = SD_MMC.open("/events");
     if (!root || !root.isDirectory()) {
+      if (root) root.close(); // Close if opened but not directory
       request->send(500, "text/plain", "Could not open /events");
       return;
     }
@@ -676,6 +677,7 @@ void setupWebInterface() {
           fname = "/events/" + fname;
         }
         if (SD_MMC.exists(fname) && SD_MMC.remove(fname)) {
+          // remove() automatically closes the file
           deleted++;
         }
       }

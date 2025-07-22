@@ -99,6 +99,7 @@ void displayImageFromAPI(String url, String zone) {
               oldestFile = fname;
             }
           }
+          file.close();
           file = root.openNextFile();
         }
         root.close();
