@@ -45,7 +45,7 @@ void displayImageFromAPI(String url, String zone) {
   while (tries < maxTries && !success) {
     Serial.print("[DEBUG] Attempt "); Serial.print(tries + 1); Serial.print("/"); Serial.println(url);
     
-  unsigned long timeAgoMillis = millis() - lastFrigateRequest;
+    unsigned long timeAgoMillis = millis() - lastFrigateRequest;
 
     if (timeAgoMillis < 10000) {
       Serial.printf("[FRIGATE] Last Frigate Request: %lums ago\n", timeAgoMillis);
@@ -160,11 +160,9 @@ void frigateKeepAlive() {
     http.end(); // Ensure any previous instance is closed
 
     String healthCheckUrl = "http://" + frigateIP + ":" + String(frigatePort) + "/api/version";
-    http.setTimeout(1000);// short timeout for keep-alive
+    http.setTimeout(5000);// short timeout for keep-alive; ideally it takes less than 50ms but can see it take 1000ms sometimes
     
     http.begin(healthCheckUrl);
-    
-    //Serial.println("[FRIGATE] Sending GET: " + healthCheckUrl);
 
     unsigned long start = millis();
     int httpCode = http.GET();
