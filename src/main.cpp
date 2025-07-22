@@ -778,6 +778,17 @@ void listDir(fs::FS &fs, const char *dirname, uint8_t levels)
 
 }
 
+void setup_SPIFFS() {
+  if (!SPIFFS.begin(true)) {
+    Serial.println("SPIFFS Mount Failed");
+    setScreen("error", 30, "setup_error");
+    tft.setTextColor(TFT_RED);
+    tft.setTextSize(2);
+    tft.println("SPIFFS failed");
+    while (true) delay(1000);
+  }
+}
+
 void setupSD_MMC() {
 
   SD_MMC.setPins(SD_SCLK_PIN, SD_MOSI_PIN, SD_MISO_PIN);
@@ -824,14 +835,9 @@ void setupSD_MMC() {
 // ------------------------
 void setup() {
   Serial.begin(115200);
-  if (!SPIFFS.begin(true)) {
-    Serial.println("SPIFFS Mount Failed");
-    setScreen("error", 30, "setup_error");
-    tft.setTextColor(TFT_RED);
-    tft.setTextSize(2);
-    tft.println("SPIFFS failed");
-    while (true) delay(1000);
-  }
+
+  setup_SPIFFS();
+
   tft.begin();
   tft.setRotation(0);
 
@@ -876,7 +882,7 @@ void setup() {
     http.end(); // Ensure any previous instance is closed
 
     String healthCheckUrl = "http://" + frigateIP + ":" + String(frigatePort) + "/api/version";
-    http.setTimeout(20000);// allow plenty of time to establish the initial connection which can be 8-4 seconds
+    http.setTimeout(20000);// allow plenty of time to establish the initial connection which can be 8-14 seconds
     
     http.begin(healthCheckUrl);
     
@@ -918,9 +924,9 @@ void loop() {
 
   static wl_status_t lastStatus = WL_CONNECTED;
   static unsigned long lastReconnectAttempt = 0;
-  const unsigned long RECONNECT_INTERVAL = 5000;
+  const unsigned long MQTT_RECONNECT_INTERVAL = 5000;
 
-  if (WiFi.status() == WL_CONNECTED && lastStatus != WL_CONNECTED && millis() - lastReconnectAttempt > RECONNECT_INTERVAL) {
+  if (WiFi.status() == WL_CONNECTED && lastStatus != WL_CONNECTED && millis() - lastReconnectAttempt > MQTT_RECONNECT_INTERVAL) {
     mqttClient.connect();
     lastReconnectAttempt = millis();
   }
