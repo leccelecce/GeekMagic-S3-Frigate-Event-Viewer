@@ -464,7 +464,9 @@ void setupWebInterface() {
   server.serveStatic("/styles.css", SPIFFS, "/styles.css");
   server.serveStatic("/scripts.js", SPIFFS, "/scripts.js");
   server.serveStatic("/icons", SPIFFS, "/icons");
-  server.serveStatic("/events", SD_MMC, "/events");// event images stored on SD for longevity / capacity
+
+  // event images stored on SD instead of SPIFFS for longevity / capacity
+  server.serveStatic("/events", SD_MMC, "/events", "max-age=3600");
 
   server.on("/", HTTP_GET, [](AsyncWebServerRequest *request) {
     Config config = getConfig();
