@@ -124,6 +124,7 @@ void handleSlideshow() {
           }
           free(jpgData);
         } else {
+          file.close(); // Ensure file is closed even if malloc fails
           Serial.println("[SLIDESHOW] Memory allocation failed for: " + filename);
         }
       } else {
@@ -186,11 +187,14 @@ void setScreen(const String& newScreen, unsigned long timeoutSec, const char* by
             }
             free(jpgData);
           } else {
-            Serial.println("[DEBUG] Cannot open file: " + filename);
+            file.close(); // Ensure file is closed even if malloc fails
+            Serial.println("[DEBUG] Memory allocation failed for: " + filename);
           }
         } else {
-          Serial.println("[DEBUG] Image not found: " + filename);
+          Serial.println("[DEBUG] Cannot open file: " + filename);
         }
+      } else {
+        Serial.println("[DEBUG] Image not found: " + filename);
       }
     }
 
@@ -396,6 +400,7 @@ String getImagesList() {
   File root = SD_MMC.open("/events");
   
   if (!root || !root.isDirectory()) {
+    if (root) root.close(); // Close if opened but not directory
     html += "<li>Could not open SD_MMC</li>";
     html += "</ul>";
     return html;
