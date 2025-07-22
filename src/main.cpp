@@ -720,7 +720,7 @@ void setupWiFi() {
       Serial.println("BSSID: " + WiFi.BSSIDstr());
       Serial.println("IP address: " + WiFi.localIP().toString());
       Serial.println("MAC: " + WiFi.macAddress());
-      setScreen("statusWiFi", 20, "show_wifi_status");
+      setScreen("statusWiFi", 10, "show_wifi_status");
       tft.setTextColor(TFT_GREEN, TFT_BLACK);
       tft.setTextSize(2);
       tft.setCursor(10, 40);
