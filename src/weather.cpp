@@ -3,6 +3,7 @@
 #include <HTTPClient.h>
 #include <ArduinoJson.h>
 #include <TFT_eSPI.h>
+#include <SD_MMC.h>
 #include <SPIFFS.h>
 #include <TJpg_Decoder.h>
 
@@ -96,6 +97,19 @@ void loadCachedCoordinates() {
                 cachedLat, cachedLon, cachedCity.c_str());
 }
 
+void storeWeather(const String& payload) {
+
+  File file = SD_MMC.open("/weather-latest.json", FILE_WRITE);
+  if (file) {
+    size_t written = file.write((const uint8_t*)payload.c_str(), payload.length());
+    file.close();
+  }
+  else {
+    Serial.println("[DEBUG] Failed to open file for writing: /weather-latest.json");
+  }
+
+}
+
 void fetchWeather() {
   Serial.println("[WEATHER] fetchWeather() started");
 
@@ -138,11 +152,16 @@ void fetchWeather() {
   Serial.print("[WEATHER] Fetching weather from One Call API: "); Serial.println(oneCallUrl);
   
   HTTPClient http;
+
   http.begin(oneCallUrl);
   int httpCodeOneCall = http.GET();
 
   if (httpCodeOneCall == 200) {
     String payload = http.getString();
+    http.end();
+
+    storeWeather(payload);
+
     JsonDocument doc;
     DeserializationError error = deserializeJson(doc, payload);
 
@@ -197,5 +216,4 @@ void fetchWeather() {
     Serial.print("[WEATHER] Error fetching weather data, code: "); Serial.println(httpCodeOneCall);
   }
 
-  http.end();
 }

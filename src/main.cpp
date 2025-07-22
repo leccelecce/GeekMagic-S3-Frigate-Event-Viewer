@@ -486,6 +486,7 @@ void setupWebInterface() {
 
   // event images stored on SD instead of SPIFFS for longevity / capacity
   server.serveStatic("/events", SD_MMC, "/events", "max-age=3600");
+  server.serveStatic("/weather-latest.json", SD_MMC, "/weather-latest.json", "no-store, no-cache, must-revalidate, max-age=0");
 
   server.on("/", HTTP_GET, [](AsyncWebServerRequest *request) {
     Config config = getConfig();
