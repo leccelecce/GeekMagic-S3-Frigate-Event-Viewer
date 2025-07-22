@@ -55,11 +55,11 @@
                         <label>{{detectionCheckbox}} Detection</label>
                     </div>
 
-                    <label for="weatherApiKey">OpenWeatherMap API Key (Free one call API 2.5)</label>
+                    <label for="weatherApiKey">OpenWeatherMap API Key (Free One Call API 3.0 + Geocoding API)</label>
                     <input type="password" id="weatherApiKey" name="weatherApiKey" value="{{weatherApiKey}}">
                     <input type="hidden" name="weatherApiKey_exists" value="{{weatherApiKey_exists}}">
 
-                    <label for="weatherCity">City</label>
+                    <label for="weatherCity">City <small>(City,CountryCode in ISO 3166-1)</small></label>
                     <input type="text" id="weatherCity" name="weatherCity" value="{{weatherCity}}">
 
                     <label for="timezone">Timezone UTC Offset</label>

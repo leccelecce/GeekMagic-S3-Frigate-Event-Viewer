@@ -54,108 +54,94 @@ void fetchWeather() {
   String todayStr(dateStr);
   Serial.print("[WEATHER] Current date (todayStr): "); Serial.println(todayStr);
 
-  // Fetch current weather data
   HTTPClient http;
-  String urlNow = "http://api.openweathermap.org/data/2.5/weather?q=" + weatherCity + "&appid=" + weatherApiKey + "&units=metric";
-  Serial.print("[WEATHER] Fetching current weather from: "); Serial.println(urlNow);
-  http.begin(urlNow);
-  int httpCodeNow = http.GET();
+  
+  // First, get coordinates from geocoding API
+  // WeatherCity should be in the format "City,CountryCode" (e.g., "Berlin,DE") with ISO 3166-1 alpha-2 country code
+  String geocodingUrl = "http://api.openweathermap.org/geo/1.0/direct?q=" + weatherCity + "&limit=1&appid=" + weatherApiKey;
+  Serial.print("[WEATHER] Fetching coordinates from: "); Serial.println(geocodingUrl);
+  http.begin(geocodingUrl);
+  int httpCodeGeo = http.GET();
+  
+  float lat = 0.0;
+  float lon = 0.0;
+  
+  if (httpCodeGeo == 200) {
+    String geoPayload = http.getString();
+    JsonDocument geoDoc;
+    DeserializationError error = deserializeJson(geoDoc, geoPayload);
+    
+    if (!error && geoDoc.size() > 0) {
+      lat = geoDoc[0]["lat"] | 0.0;
+      lon = geoDoc[0]["lon"] | 0.0;
+      Serial.printf("[WEATHER] Coordinates - lat: %.6f, lon: %.6f\n", lat, lon);
+    } else {
+      Serial.println("[WEATHER] Error parsing geocoding response or city not found");
+      http.end();
+      return;
+    }
+  } else {
+    Serial.print("[WEATHER] Error fetching coordinates, code: "); Serial.println(httpCodeGeo);
+    http.end();
+    return;
+  }
+  http.end();
 
-  if (httpCodeNow == 200) {
+  // Use One Call API 3.0 for weather data
+  String oneCallUrl = "https://api.openweathermap.org/data/3.0/onecall?lat=" + String(lat, 6) + 
+                      "&lon=" + String(lon, 6) + "&appid=" + weatherApiKey + "&units=metric&exclude=minutely,hourly,alerts";
+  Serial.print("[WEATHER] Fetching weather from One Call API: "); Serial.println(oneCallUrl);
+  
+  http.begin(oneCallUrl);
+  int httpCodeOneCall = http.GET();
+
+  if (httpCodeOneCall == 200) {
     String payload = http.getString();
     JsonDocument doc;
     DeserializationError error = deserializeJson(doc, payload);
 
     if (!error) {
-      weatherTemp = doc["main"]["temp"] | 0.0;
-      weatherHumidity = doc["main"]["humidity"] | 0.0;
-      weatherIcon = doc["weather"][0]["icon"].as<String>();
+      // Current weather data
+      weatherTemp = doc["current"]["temp"] | 0.0;
+      weatherHumidity = doc["current"]["humidity"] | 0.0;
+      weatherIcon = doc["current"]["weather"][0]["icon"].as<String>();
 
       Serial.print("[WEATHER] Current temperature: "); Serial.println(weatherTemp);
       Serial.print("[WEATHER] Current humidity: "); Serial.println(weatherHumidity);
       Serial.print("[WEATHER] Icon: "); Serial.println(weatherIcon);
-    } else {
-      Serial.print("[WEATHER] JSON parse error (current): "); Serial.println(error.c_str());
-    }
-  } else {
-    Serial.print("[WEATHER] Error fetching current weather, code: "); Serial.println(httpCodeNow);
-  }
-  http.end();
 
-  // Only update min/max on a new day
-  if (todayStr == weatherTempDay) {
-    Serial.println("[WEATHER] Min/max already fetched for this day, no update needed.");
-    return;
-  }
-
-  // Fetch min/max for today from forecast
-  String urlForecast = "http://api.openweathermap.org/data/2.5/forecast?q=" + weatherCity + "&appid=" + weatherApiKey + "&units=metric&lang=en";
-  Serial.print("[WEATHER] Fetching forecast from: "); Serial.println(urlForecast);
-  http.begin(urlForecast);
-  int httpCodeForecast = http.GET();
-
-  if (httpCodeForecast == 200) {
-    String forecastPayload = http.getString();
-    JsonDocument doc;
-    DeserializationError error = deserializeJson(doc, forecastPayload);
-
-    if (!error) {
-      float minTemp = 99.0;
-      float maxTemp = -99.0;
-      int matched = 0;
-
-      JsonArray list = doc["list"];
-      for (JsonObject entry : list) {
-        String dt_txt = entry["dt_txt"].as<String>();
-        float tempMin = entry["main"]["temp_min"] | 0.0;
-        float tempMax = entry["main"]["temp_max"] | 0.0;
-
-        if (dt_txt.startsWith(todayStr)) {
-          matched++;
-          Serial.print("[WEATHER] Match found for timestamp: "); Serial.print(dt_txt);
-          Serial.print(", temp_min: "); Serial.print(tempMin);
-          Serial.print(", temp_max: "); Serial.println(tempMax);
-          if (tempMin < minTemp) minTemp = tempMin;
-          if (tempMax > maxTemp) maxTemp = tempMax;
-        }
-      }
-
-      if (matched > 0) {
-        weatherTempMin = minTemp;
-        weatherTempMax = maxTemp;
-        Serial.print("[WEATHER] Minimum temperature today: "); Serial.println(weatherTempMin);
-        Serial.print("[WEATHER] Maximum temperature today: "); Serial.println(weatherTempMax);
-        if (matched == 1) {
-          Serial.println("[WEATHER] Warning: Only one timestamp found for today, min/max based on single data point.");
+      // Only update min/max on a new day
+      if (todayStr != weatherTempDay) {
+        // Get today's min/max from daily forecast (first entry is today)
+        if (doc["daily"].size() > 0) {
+          JsonObject today = doc["daily"][0];
+          weatherTempMin = today["temp"]["min"] | 0.0;
+          weatherTempMax = today["temp"]["max"] | 0.0;
+          
+          Serial.print("[WEATHER] Minimum temperature today: "); Serial.println(weatherTempMin);
+          Serial.print("[WEATHER] Maximum temperature today: "); Serial.println(weatherTempMax);
+          
+          // Set the day and save all values
+          weatherTempDay = todayStr;
+          preferences.putString("day", weatherTempDay);
+          preferences.putFloat("min", weatherTempMin);
+          preferences.putFloat("max", weatherTempMax);
+        } else {
+          Serial.println("[WEATHER] No daily forecast data available");
+          weatherTempMin = 0;
+          weatherTempMax = 0;
         }
       } else {
-        Serial.println("[WEATHER] No forecasts found for today (no date match).");
-        weatherTempMin = 0;
-        weatherTempMax = 0;
-        Serial.print("[WEATHER] Minimum temperature today: "); Serial.println(weatherTempMin);
-        Serial.print("[WEATHER] Maximum temperature today: "); Serial.println(weatherTempMax);
+        Serial.println("[WEATHER] Min/max already fetched for this day, no update needed.");
       }
+      
+      preferences.putFloat("humidity", weatherHumidity);
     } else {
-      Serial.print("[WEATHER] JSON parse error (forecast): "); Serial.println(error.c_str());
-      weatherTempMin = 0;
-      weatherTempMax = 0;
-      Serial.print("[WEATHER] Minimum temperature today: "); Serial.println(weatherTempMin);
-      Serial.print("[WEATHER] Maximum temperature today: "); Serial.println(weatherTempMax);
+      Serial.print("[WEATHER] JSON parse error: "); Serial.println(error.c_str());
     }
   } else {
-    Serial.print("[WEATHER] Error fetching forecast, code: "); Serial.println(httpCodeForecast);
-    weatherTempMin = 0;
-    weatherTempMax = 0;
-    Serial.print("[WEATHER] Minimum temperature today: "); Serial.println(weatherTempMin);
-    Serial.print("[WEATHER] Maximum temperature today: "); Serial.println(weatherTempMax);
+    Serial.print("[WEATHER] Error fetching weather data, code: "); Serial.println(httpCodeOneCall);
   }
-
-  // Set the day and save all values
-  weatherTempDay = todayStr;
-  preferences.putString("day", weatherTempDay);
-  preferences.putFloat("min", weatherTempMin);
-  preferences.putFloat("max", weatherTempMax);
-  preferences.putFloat("humidity", weatherHumidity);
 
   http.end();
 }
