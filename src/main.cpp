@@ -465,8 +465,8 @@ String getCheckedAttribute(bool isChecked) {
 //  Webinterface
 // ------------------------
 void setupWebInterface() {
-  server.serveStatic("/styles.css", SPIFFS, "/styles.css");
-  server.serveStatic("/scripts.js", SPIFFS, "/scripts.js");
+  server.serveStatic("/styles.css", SPIFFS, "/styles.css", "no-store, no-cache, must-revalidate, max-age=0");
+  server.serveStatic("/scripts.js", SPIFFS, "/scripts.js", "no-store, no-cache, must-revalidate, max-age=0");
   server.serveStatic("/icons", SPIFFS, "/icons");
 
   // event images stored on SD instead of SPIFFS for longevity / capacity
