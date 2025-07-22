@@ -264,12 +264,13 @@ void showClock() {
   // Temperature
   String tempValue = String(weatherTemp, 1);
   String tempUnit = "÷c";
-  String humidityValue = String((int)weatherHumidity); // Geheel getal voor luchtvochtigheid
+  String humidityValue = String((int)weatherHumidity);
   String humidityUnit = "%";
   String tempMinValue = String(weatherTempMin, 1);
   String tempMinUnit = "÷c";
   String tempMaxValue = String(weatherTempMax, 1);
   String tempMaxUnit = "÷c";
+  String weatherRainMMValue = String(weatherRainMM, 1);
 
   tft.setTextSize(4);
   tft.setTextColor(TFT_WHITE, TFT_BLACK);
@@ -290,29 +291,42 @@ void showClock() {
 
   // Min label
   tft.setTextSize(2);
-  tft.setCursor(2, 170);
+  tft.setCursor(2, 160);
   tft.print("Min ");
   int minLabelWidth = tft.textWidth("Min ");
   tft.setTextSize(3);
-  tft.setCursor(2 + minLabelWidth, 165);
+  tft.setCursor(2 + minLabelWidth, 155);
   tft.print(tempMinValue);
   int tempMinValueWidth = tft.textWidth(tempMinValue);
   tft.setTextSize(2);
-  tft.setCursor(2 + minLabelWidth + tempMinValueWidth, 170);
+  tft.setCursor(2 + minLabelWidth + tempMinValueWidth, 160);
   tft.print(tempMinUnit);
 
   // Max label
   tft.setTextSize(2);
-  tft.setCursor(2, 200);
+  tft.setCursor(2, 190);
   tft.print("Max ");
   int maxLabelWidth = tft.textWidth("Max ");
   tft.setTextSize(3);
-  tft.setCursor(2 + maxLabelWidth, 195);
+  tft.setCursor(2 + maxLabelWidth, 185);
   tft.print(tempMaxValue);
   int tempMaxValueWidth = tft.textWidth(tempMaxValue);
   tft.setTextSize(2);
-  tft.setCursor(2 + maxLabelWidth + tempMaxValueWidth, 200);
+  tft.setCursor(2 + maxLabelWidth + tempMaxValueWidth, 190);
   tft.print(tempMaxUnit);
+
+  // Rain MM
+  tft.setTextSize(2);
+  tft.setCursor(2, 220);
+  tft.print("Rain ");
+  int rainLabelWidth = tft.textWidth("Rain ");
+  tft.setTextSize(3);
+  tft.setCursor(2 + rainLabelWidth, 215);
+  tft.print(weatherRainMMValue);
+  int rainValueWidth = tft.textWidth(weatherRainMMValue);
+  tft.setTextSize(2);
+  tft.setCursor(2 + rainLabelWidth + rainValueWidth, 220);
+  tft.print("mm");
 
   // Weather icon
   if (isScreenTransition || weatherIcon != lastDrawnWeatherIcon) {

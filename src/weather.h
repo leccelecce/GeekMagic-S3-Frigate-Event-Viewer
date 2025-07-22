@@ -11,6 +11,7 @@ extern float weatherHumidity;
 extern float weatherTemp;
 extern float weatherTempMin;
 extern float weatherTempMax;
+extern float weatherRainMM;
 
 void fetchWeather();
 void showWeatherIconJPG(String iconCode);
