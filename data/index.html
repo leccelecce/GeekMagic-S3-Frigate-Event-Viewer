@@ -68,7 +68,9 @@
                     <button type="submit">Save</button>
                 </form>
                 <button onclick="window.location.href='/update'">Firmware Update</button>
-                <button onclick="window.location.href='/reboot'">Reboot ESP32</button>
+                <form method="POST" action="/reboot" style="display: inline;">
+                    <button type="submit" onclick="return confirmReboot()">Reboot ESP32</button>
+                </form>
             </div>
 
             <div class="card">

@@ -680,12 +680,12 @@ void setupWebInterface() {
     }
   });
 
-  server.on("/reboot", HTTP_GET, [](AsyncWebServerRequest *request) {
-      Serial.println("[WEB] Reboot requested via /reboot");
-      request->send(200, "text/plain", "Rebooting ESP32...");
-      delay(500);
-      ESP.restart();
-  });
+  server.on("/reboot", HTTP_POST, [](AsyncWebServerRequest *request) {
+    Serial.println("[WEB] Reboot requested via /reboot");
+    request->send(200, "text/plain", "Rebooting ESP32...");
+    delay(500);
+    ESP.restart();
+});
 
   server.begin();
 }

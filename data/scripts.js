@@ -117,3 +117,19 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
 });
+
+function confirmReboot() {
+    if (confirm('Are you sure you want to reboot the ESP32? The device will be unavailable for a few moments.')) {
+        // Disable the button to prevent multiple clicks
+        event.target.disabled = true;
+        event.target.textContent = 'Rebooting...';
+        
+        // Show a message to the user
+        setTimeout(() => {
+            document.body.innerHTML = '<div style="text-align: center; margin-top: 50px;"><h2>ESP32 is rebooting...</h2><p>Please wait and refresh the page in about 30 seconds.</p></div>';
+        }, 100);
+        
+        return true;
+    }
+    return false;
+}
