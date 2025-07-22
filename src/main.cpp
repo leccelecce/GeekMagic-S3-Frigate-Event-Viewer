@@ -727,13 +727,14 @@ void setupWebInterface() {
   server.on("/health", HTTP_GET, [](AsyncWebServerRequest *request) {
     JsonDocument doc;
     doc["status"] = "ok";
-    doc["memory"]["heapSize"] = ESP.getHeapSize();
-    doc["memory"]["freeHeap"] = ESP.getFreeHeap();
-    doc["memory"]["minFreeHeap"] = ESP.getMinFreeHeap();
-    doc["memory"]["maxAllocHeap"] = ESP.getMaxAllocHeap();
-    doc["memory"]["freePsram"] = ESP.getFreePsram();
-    doc["memory"]["minFreePsram"] = ESP.getMinFreePsram();
-    doc["memory"]["maxAllocPsram"] = ESP.getMaxAllocPsram();
+    doc["memory"]["heap"]["heapSizeKB"] = ESP.getHeapSize() / 1024;
+    doc["memory"]["heap"]["freeHeapKB"] = ESP.getFreeHeap() / 1024;
+    doc["memory"]["heap"]["minFreeHeapKB"] = ESP.getMinFreeHeap() / 1024;
+    doc["memory"]["heap"]["maxAllocHeapKB"] = ESP.getMaxAllocHeap() / 1024;
+    doc["memory"]["psram"]["psramSizeKB"] = ESP.getPsramSize() / 1024;
+    doc["memory"]["psram"]["freePsramKB"] = ESP.getFreePsram() / 1024;
+    doc["memory"]["psram"]["minFreePsramKB"] = ESP.getMinFreePsram() / 1024;
+    doc["memory"]["psram"]["maxAllocPsramKB"] = ESP.getMaxAllocPsram() / 1024;
     request->send(200, "application/json", doc.as<String>());
   });
 
