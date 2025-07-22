@@ -279,6 +279,7 @@ void showClock() {
   String tempMaxValue = String(weatherTempMax, 1);
   String tempMaxUnit = "÷c";
   String weatherRainMMValue = String(weatherRainMM, 1);
+  String weatherSnowMMValue = String(weatherSnowMM, 1);
 
   tft.setTextSize(4);
   tft.setTextColor(TFT_WHITE, TFT_BLACK);
@@ -323,18 +324,32 @@ void showClock() {
   tft.setCursor(2 + maxLabelWidth + tempMaxValueWidth, 190);
   tft.print(tempMaxUnit);
 
-  // Rain MM
-  tft.setTextSize(2);
-  tft.setCursor(2, 220);
-  tft.print("Rain ");
-  int rainLabelWidth = tft.textWidth("Rain ");
-  tft.setTextSize(3);
-  tft.setCursor(2 + rainLabelWidth, 215);
-  tft.print(weatherRainMMValue);
-  int rainValueWidth = tft.textWidth(weatherRainMMValue);
-  tft.setTextSize(2);
-  tft.setCursor(2 + rainLabelWidth + rainValueWidth, 220);
-  tft.print("mm");
+  // Rain or Snow MM (assumes weatherSnowMM and weatherRainMM are mutually exclusive)
+  if (weatherRainMM > 0) {
+    tft.setTextSize(2);
+    tft.setCursor(2, 220);
+    tft.print("Rain ");
+    int rainLabelWidth = tft.textWidth("Rain ");
+    tft.setTextSize(3);
+    tft.setCursor(2 + rainLabelWidth, 215);
+    tft.print(weatherRainMMValue);
+    int rainValueWidth = tft.textWidth(weatherRainMMValue);
+    tft.setTextSize(2);
+    tft.setCursor(2 + rainLabelWidth + rainValueWidth, 220);
+    tft.print("mm");
+  } else if (weatherSnowMM > 0) {
+    tft.setTextSize(2);
+    tft.setCursor(2, 220);
+    tft.print("Snow ");
+    int snowLabelWidth = tft.textWidth("Snow ");
+    tft.setTextSize(3);
+    tft.setCursor(2 + snowLabelWidth, 215);
+    tft.print(weatherSnowMMValue);
+    int snowValueWidth = tft.textWidth(weatherSnowMMValue);
+    tft.setTextSize(2);
+    tft.setCursor(2 + snowLabelWidth + snowValueWidth, 220);
+    tft.print("mm");
+  }
 
   // Weather icon
   if (isScreenTransition || weatherIcon != lastDrawnWeatherIcon) {

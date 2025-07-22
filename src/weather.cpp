@@ -14,6 +14,7 @@ float weatherTemp = 0.0;
 float weatherTempMin = 0.0;
 float weatherTempMax = 0.0;
 float weatherRainMM = 0.0;
+float weatherSnowMM = 0.0;
 String weatherApiKey = "";
 String weatherCity = "";
 // Add cached coordinates
@@ -163,10 +164,12 @@ void fetchWeather() {
           weatherTempMin = today["temp"]["min"] | 0.0;
           weatherTempMax = today["temp"]["max"] | 0.0;
           weatherRainMM = today["rain"] | 0.0; // Rain in mm, if available
-          
+          weatherSnowMM = today["snow"] | 0.0; // Snow in mm, if available
+
           Serial.print("[WEATHER] Minimum temperature today: "); Serial.println(weatherTempMin);
           Serial.print("[WEATHER] Maximum temperature today: "); Serial.println(weatherTempMax);
           Serial.print("[WEATHER] Rain today: "); Serial.println(weatherRainMM);
+          Serial.print("[WEATHER] Snow today: "); Serial.println(weatherSnowMM);
 
           // Set the day and save all values
           weatherTempDay = todayStr;
@@ -174,11 +177,13 @@ void fetchWeather() {
           preferences.putFloat("min", weatherTempMin);
           preferences.putFloat("max", weatherTempMax);
           preferences.putFloat("rain", weatherRainMM);
+          preferences.putFloat("snow", weatherSnowMM);
         } else {
           Serial.println("[WEATHER] No daily forecast data available");
           weatherTempMin = 0;
           weatherTempMax = 0;
           weatherRainMM = 0;
+          weatherSnowMM = 0;
         }
       } else {
         Serial.println("[WEATHER] Min/max already fetched for this day, no update needed.");
