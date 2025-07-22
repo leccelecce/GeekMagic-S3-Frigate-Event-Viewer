@@ -47,6 +47,6 @@
       "require_upload_port": true,
       "speed": 921600
   },
-  "url": "https://www.waveshare.com/1.3inch-oled-b.htm",
+  "url": "https://www.waveshare.com/esp32-s3-lcd-1.3.htm",
   "vendor": "Waveshare"
 }
