@@ -724,6 +724,19 @@ void setupWebInterface() {
     }
   });
 
+  server.on("/health", HTTP_GET, [](AsyncWebServerRequest *request) {
+    JsonDocument doc;
+    doc["status"] = "ok";
+    doc["memory"]["heapSize"] = ESP.getHeapSize();
+    doc["memory"]["freeHeap"] = ESP.getFreeHeap();
+    doc["memory"]["minFreeHeap"] = ESP.getMinFreeHeap();
+    doc["memory"]["maxAllocHeap"] = ESP.getMaxAllocHeap();
+    doc["memory"]["freePsram"] = ESP.getFreePsram();
+    doc["memory"]["minFreePsram"] = ESP.getMinFreePsram();
+    doc["memory"]["maxAllocPsram"] = ESP.getMaxAllocPsram();
+    request->send(200, "application/json", doc.as<String>());
+  });
+
   server.on("/reboot", HTTP_POST, [](AsyncWebServerRequest *request) {
     Serial.println("[WEB] Reboot requested via /reboot");
     request->send(200, "text/plain", "Rebooting ESP32...");
