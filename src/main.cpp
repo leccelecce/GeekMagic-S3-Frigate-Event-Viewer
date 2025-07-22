@@ -16,9 +16,10 @@
 #include <Update.h>
 #include <vector>
 #include <algorithm>
-#include "weather.h"
+
 #include "frigate.h"
 #include "mqtt.h"
+#include "weather.h"
 
 //
 // Hardware Settings
