@@ -105,6 +105,8 @@ void fetchWeather() {
 
   // Check if we need to fetch coordinates
   bool needsCoordinates = false;
+
+  loadCachedCoordinates();
   
   if (cachedLat == 0.0 && cachedLon == 0.0) {
     Serial.println("[WEATHER] No cached coordinates found");
