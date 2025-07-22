@@ -39,7 +39,10 @@ const char* CLIENT_ID = "ESP32Client";
 const char* DEFAULT_SSID = "ESP32_AP";
 const char* DEFAULT_PASSWORD = "admin1234";
 const unsigned long WIFI_TIMEOUT = 10000;
-const int DEBOUNCE_MS = 250;
+const unsigned long MQTT_RECONNECT_INTERVAL = 5000;
+const unsigned long FRIGATE_KEEPALIVE_INTERVAL = 25UL * 1000UL; // 25 seconds
+
+// Clock consts
 const unsigned long CLOCK_REFRESH_INTERVAL = 1000UL; // 1 second
 const char* daysShort[] = {"Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"};
 const char* months[] = {"Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"};
@@ -59,10 +62,11 @@ unsigned long lastClockUpdate = 0;
 unsigned long lastKeyTime = 0;
 unsigned long screenTimeout = 0;
 unsigned long screenSince = 0;
-const unsigned long FRIGATE_REFRESH_INTERVAL = 25UL * 1000UL; // 25 seconds
+
 // --- WEATHER ---
 unsigned long lastWeatherFetch = 0;
 const unsigned long WEATHER_REFRESH_INTERVAL = 15UL * 60UL * 1000UL; // 10 minutes
+
 // --- Slideshow ---
 bool slideshowActive = false;
 unsigned long slideshowStart = 0;
@@ -947,7 +951,6 @@ void loop() {
 
   static wl_status_t lastStatus = WL_CONNECTED;
   static unsigned long lastReconnectAttempt = 0;
-  const unsigned long MQTT_RECONNECT_INTERVAL = 5000;
 
   if (WiFi.status() == WL_CONNECTED && lastStatus != WL_CONNECTED && millis() - lastReconnectAttempt > MQTT_RECONNECT_INTERVAL) {
     mqttClient.connect();
@@ -963,7 +966,7 @@ void loop() {
     setScreen("clock", 0, "timeout");
   }
 
-  if (millis() - lastFrigateRequest > FRIGATE_REFRESH_INTERVAL) {
+  if (millis() - lastFrigateRequest > FRIGATE_KEEPALIVE_INTERVAL) {
     lastFrigateRequest = millis();
     frigateKeepAlive();
   }  
