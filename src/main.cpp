@@ -684,7 +684,7 @@ void setupWebInterface() {
       }
     });
 
-  server.on("/delete_all", HTTP_GET, [](AsyncWebServerRequest *request) {
+  server.on("/delete_all", HTTP_POST, [](AsyncWebServerRequest *request) {
     int deleted = 0;
     File root = SD_MMC.open("/events");
     if (!root || !root.isDirectory()) {

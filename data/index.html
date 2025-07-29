@@ -80,7 +80,9 @@
                     <p>Used: {{usedBytes}} KB</p>
                     <p>Free: {{freeBytes}} KB</p>
                 </div>
-                <button onclick="window.location.href='/delete_all'">Delete All Images</button>
+                <form method="POST" action="/delete_all"  style="display: inline;">
+                    <button type="submit" >Delete All Images</button>
+                </form>
                 <h4>Saved Images:</h4>
                 {{imagesList}}
             </div>
