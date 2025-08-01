@@ -161,7 +161,7 @@ void frigateKeepAlive() {
     http.end(); // Ensure any previous instance is closed
 
     String healthCheckUrl = "http://" + frigateIP + ":" + String(frigatePort) + "/api/version";
-    http.setTimeout(5000);// short timeout for keep-alive; ideally it takes less than 50ms but can see it take 1000ms sometimes
+    http.setTimeout(10000);// needs to be long enough to allow for the initial connection which can take 8-14 seconds
     
     http.begin(healthCheckUrl);
 
@@ -169,8 +169,8 @@ void frigateKeepAlive() {
     int httpCode = http.GET();
     unsigned long end = millis();
 
-    if (end - start > 50) {
-      Serial.printf("[FRIGATE] Keep-alive took too long: %lu ms\n", end - start);
+    if (end - start > 100) {
+      Serial.printf("[FRIGATE] Keep-alive took > 100ms: %lu ms\n", end - start);
     }
 
     if (httpCode != 200) {
